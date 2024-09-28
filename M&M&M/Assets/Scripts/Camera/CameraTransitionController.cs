@@ -29,14 +29,11 @@ public class CameraTransitionController : MonoBehaviour
 
     private CinemachineBrain cinemachineBrain;
     private Image fadeImage;
-    private Vector3 initialCameraPosition;
-    private float initialFieldOfView;
+    private CinemachineVirtualCamera currentActiveCamera;
 
     private void Start()
     {
         cinemachineBrain = Camera.main.GetComponent<CinemachineBrain>();
-        initialCameraPosition = Camera.main.transform.position;
-        initialFieldOfView = Camera.main.fieldOfView;
 
         // Create a canvas for the fade effect
         Canvas canvas = new GameObject("FadeCanvas").AddComponent<Canvas>();
@@ -54,6 +51,14 @@ public class CameraTransitionController : MonoBehaviour
         foreach (var transition in transitions)
         {
             transition.triggerButton.onClick.AddListener(() => StartTransition(transition));
+            transition.targetCamera.Priority = 0;  // Set all cameras to low priority initially
+        }
+
+        // Set the initial active camera
+        if (transitions.Length > 0)
+        {
+            currentActiveCamera = transitions[0].targetCamera;
+            currentActiveCamera.Priority = 10;
         }
     }
 
@@ -67,8 +72,12 @@ public class CameraTransitionController : MonoBehaviour
         yield return StartCoroutine(TransitionOut(transition.transitionType));
 
         // Switch the active camera
-        cinemachineBrain.ActiveVirtualCamera.VirtualCameraGameObject.SetActive(false);
-        transition.targetCamera.gameObject.SetActive(true);
+        if (currentActiveCamera != null)
+        {
+            currentActiveCamera.Priority = 0;
+        }
+        transition.targetCamera.Priority = 10;
+        currentActiveCamera = transition.targetCamera;
 
         yield return StartCoroutine(TransitionIn(transition.transitionType));
     }
@@ -108,29 +117,13 @@ public class CameraTransitionController : MonoBehaviour
                 break;
             case TransitionType.ShrinkAndFade:
                 fadeImage.color = new Color(0, 0, 0, t);
-                Camera.main.fieldOfView = Mathf.Lerp(initialFieldOfView, initialFieldOfView / 2, t);
                 break;
             case TransitionType.SlideRight:
             case TransitionType.SlideLeft:
             case TransitionType.SlideUp:
             case TransitionType.SlideDown:
-                Vector2 slideDirection = GetSlideDirection(type);
                 fadeImage.color = new Color(0, 0, 0, t);
-                Vector3 targetPosition = initialCameraPosition + (Vector3)(slideDirection * 10f); // 10 units of movement
-                Camera.main.transform.position = Vector3.Lerp(initialCameraPosition, targetPosition, t);
                 break;
-        }
-    }
-
-    private Vector2 GetSlideDirection(TransitionType type)
-    {
-        switch (type)
-        {
-            case TransitionType.SlideRight: return Vector2.right;
-            case TransitionType.SlideLeft: return Vector2.left;
-            case TransitionType.SlideUp: return Vector2.up;
-            case TransitionType.SlideDown: return Vector2.down;
-            default: return Vector2.zero;
         }
     }
 }
